@@ -1,0 +1,1040 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Chronicle — AI Game Master</title>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { background:#1e0303; }
+    ::-webkit-scrollbar { width:6px; }
+    ::-webkit-scrollbar-track { background:#1a0000; }
+    ::-webkit-scrollbar-thumb { background:#c9a84c; border-radius:3px; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState, useRef, useEffect } = React;
+
+    // Proxy is always same origin when hosted together
+    const PROXY_URL = window.location.origin;
+
+
+// ═══════════════════════════════════════════════════════════
+// THEME
+// ═══════════════════════════════════════════════════════════
+const T = {
+  gold:        "#f0c040",
+  goldLight:   "#ffe080",
+  goldDim:     "#c49030",
+  crimson:     "#8b0000",
+  crimsonDeep: "#3a0000",
+  crimsonMid:  "#5a0808",
+  bgPage:      "linear-gradient(160deg, #6a0000 0%, #3a0000 30%, #1e0303 70%, #0d0101 100%)",
+  bgCard:      "rgba(255,180,80,0.08)",
+  bgCardHover: "rgba(255,180,80,0.14)",
+  bgSelected:  "rgba(240,192,64,0.18)",
+  border:      "rgba(240,192,64,0.4)",
+  borderDim:   "rgba(240,192,64,0.2)",
+  textMain:    "#fff8ee",
+  textSub:     "#e8c880",
+  textMuted:   "#c09040",
+  textDark:    "#7a5020",
+  font:        "'Palatino Linotype','Book Antiqua',Palatino,Georgia,serif",
+};
+
+// ═══════════════════════════════════════════════════════════
+// DATA
+// ═══════════════════════════════════════════════════════════
+const WORLDS = [
+  { id:"medieval",   emoji:"🏰", name:"Medieval Realm",   desc:"Kingdoms, knights, feudal wars",            vibe:"gritty medieval europe, stone castles, political intrigue, swords and honour" },
+  { id:"ancient",    emoji:"🏛️", name:"Ancient Empires",  desc:"Rome, Greece, Egypt, Persia",               vibe:"ancient civilisations, legions, gods, philosophers, gladiators, desert empires" },
+  { id:"norse",      emoji:"⚡",  name:"Norse & Viking",   desc:"Longships, gods, frozen north",             vibe:"norse mythology, viking raiders, Odin and Thor, longships, harsh winters, Valhalla" },
+  { id:"eastern",    emoji:"⛩️", name:"Far East",         desc:"Samurai, ninja, feudal Japan",              vibe:"feudal Japan and ancient China, samurai honour, ninja clans, emperors, war" },
+  { id:"fantasy",    emoji:"🧙",  name:"High Fantasy",     desc:"Magic, dragons, prophecies",                vibe:"epic high fantasy, ancient magic, dragons, elves, dwarves, dark lords, chosen heroes" },
+  { id:"dark",       emoji:"🕯️", name:"Dark & Gothic",    desc:"Corruption, shadows, horror",               vibe:"dark gothic world, corruption, undead, forbidden magic, crumbling kingdoms" },
+  { id:"ocean",      emoji:"🌊",  name:"Age of Sail",      desc:"Pirates, sea monsters, islands",            vibe:"golden age of piracy, sea monsters, cursed treasure, uncharted islands, naval battles" },
+  { id:"desert",     emoji:"🌅",  name:"Desert Kingdoms",  desc:"Arabian nights, djinn, oases",              vibe:"arabian fantasy, djinn, ancient desert gods, silk road, oasis cities, ancient curses" },
+  { id:"underworld", emoji:"💀",  name:"The Underworld",   desc:"Land of the dead, death gods",              vibe:"mythological underworld, gods of death, souls, rivers of the dead, ancient bargains" },
+  { id:"tribal",     emoji:"🌿",  name:"Primal Jungle",    desc:"Lost civilisations, spirits",               vibe:"primal jungle, lost civilisations, shamans, animal spirits, ancient ruins, tribal warfare" },
+  { id:"random",     emoji:"🎲",  name:"Surprise Me!",     desc:"Random — anything goes",                    vibe:"RANDOM" },
+  { id:"custom",     emoji:"✍️",  name:"My Own World",     desc:"You describe it",                           vibe:"CUSTOM" },
+];
+
+const RANDOM_WORLDS = [
+  "A dying empire where magic is outlawed and the last wizard is hunted",
+  "A world built inside a giant's fossilised skull",
+  "The last floating city above a world drowned by endless ocean",
+  "A prison continent where fallen gods are exiled",
+  "A realm where each season lasts a century",
+  "A continent built on the back of a sleeping titan who is slowly waking",
+  "A Roman empire that never fell, now reaching for the stars with steam and iron",
+  "An age where dragons serve as judges, lawgivers and executioners",
+];
+
+const AGE_GROUPS = [
+  { id:"kids",  label:"🌟 Kids",    desc:"Ages 5–8 · Simple & safe",   note:"Simple words, no violence, always safe outcomes, wonder and fun above all" },
+  { id:"young", label:"🗡️ Young",  desc:"Ages 8–12 · Adventurous",    note:"Action and adventure, light peril, heroic outcomes, nothing graphic" },
+  { id:"teen",  label:"⚔️ Teen",    desc:"Ages 13–17 · Intense",       note:"Real tension, moral choices, consequences matter, no explicit content" },
+  { id:"adult", label:"💀 Adult",   desc:"18+ · Full depth",            note:"Full grit, moral ambiguity, real consequences, complex themes, epic scope" },
+];
+
+const DIFFICULTIES = [
+  { id:"story",  label:"📖 Story Mode", desc:"Narrative first. Heroes rarely fail." },
+  { id:"normal", label:"⚔️ Balanced",   desc:"Fair challenge. Wrong choices sting." },
+  { id:"brutal", label:"💀 Brutal",     desc:"Death is real. Think before you act." },
+];
+
+const CHARS = [
+  { id:"knight",    e:"⚔️",  n:"Iron Knight",      desc:"Oath-bound warrior. Unbreakable loyalty.",          power:"Unbreakable Shield — protects any ally from one deadly blow" },
+  { id:"wizard",    e:"🧙",  n:"Runeweaver",        desc:"Inscribes magic into reality. Unpredictable.",      power:"Runeblast — detonates an inscribed rune with catastrophic force" },
+  { id:"ranger",    e:"🏹",  n:"Shadow Ranger",     desc:"Ghost of the wilderness. Tracks anything.",        power:"Hunter's Mark — never loses a target once spotted" },
+  { id:"rogue",     e:"🗡️", n:"Shadowblade",       desc:"Born in gutters. Charming, lethal, untrustworthy.", power:"Vanish — disappears completely for one action" },
+  { id:"bard",      e:"🎵",  n:"Wandering Skald",   desc:"Singer of sagas. Words can shatter minds.",        power:"War Chant — inspires the party, doubling their resolve" },
+  { id:"legionary", e:"🦅",  n:"Roman Legionary",   desc:"Elite soldier. Disciplined, ruthless, loyal.",     power:"Testudo — impenetrable formation, blocks all ranged attacks" },
+  { id:"samurai",   e:"🌸",  n:"Ronin Samurai",     desc:"Masterless. Devastating blade. Haunted past.",     power:"Iaijutsu Strike — lightning draw that ends a fight instantly" },
+  { id:"shaman",    e:"🔥",  n:"Spirit Shaman",     desc:"Bridge between living and dead. Calls ancestors.", power:"Spirit Walk — sends soul into the spirit realm for knowledge" },
+  { id:"assassin",  e:"🌑",  n:"Night Assassin",    desc:"No target has ever escaped. Cold and precise.",    power:"Death Mark — guarantees a critical hit on one marked target" },
+  { id:"berserker", e:"🪓",  n:"Norse Berserker",   desc:"Touched by Odin's fury. Feels no pain.",           power:"Berserk — unstoppable fury, immune to pain and fear" },
+  { id:"paladin",   e:"✨",  n:"Holy Paladin",       desc:"Warrior of divine light. Heals and smites.",       power:"Divine Smite — devastating holy strike against evil" },
+  { id:"druid",     e:"🌳",  n:"Wild Druid",         desc:"Shape-shifter. Commands the forest itself.",       power:"Wild Shape — transforms into any animal for one scene" },
+  { id:"pirate",    e:"🏴‍☠️",n:"Corsair Captain",   desc:"Commander of the seas. Feared across all oceans.", power:"Press Gang — recruits any NPC with sheer personality" },
+  { id:"ninja",     e:"🥷",  n:"Shinobi",            desc:"Ghost warrior of the shadow arts.",                power:"Shadow Meld — becomes invisible in any shadow" },
+  { id:"oracle",    e:"👁️", n:"Blind Oracle",       desc:"Cannot see the present — but sees all futures.",   power:"Foresight — knows what will happen before it unfolds" },
+  { id:"gladiator", e:"🛡️", n:"Arena Champion",     desc:"Survivor of a thousand battles. Showman and killer.",power:"Crowd's Favour — grows stronger the more dramatic the action" },
+];
+
+
+// ═══════════════════════════════════════════════════════════
+// CARD GRADIENTS — styled emoji cards, instant, no loading
+// ═══════════════════════════════════════════════════════════
+
+// Each character gets a unique gradient background
+const CHAR_STYLE = {
+  knight:    { bg: "linear-gradient(145deg,#1a1a2e,#16213e,#0f3460)", accent: "#4fc3f7" },
+  wizard:    { bg: "linear-gradient(145deg,#0d0221,#1a0533,#2d1b69)", accent: "#ce93d8" },
+  ranger:    { bg: "linear-gradient(145deg,#0a1628,#0d2818,#1b4332)", accent: "#81c784" },
+  rogue:     { bg: "linear-gradient(145deg,#1a0a00,#2d1b00,#1c1c1c)", accent: "#ffb74d" },
+  bard:      { bg: "linear-gradient(145deg,#1a0d00,#2e1a00,#4a2800)", accent: "#ffd54f" },
+  legionary: { bg: "linear-gradient(145deg,#1a0a00,#3e1500,#5c1a00)", accent: "#ef9a9a" },
+  samurai:   { bg: "linear-gradient(145deg,#1a0014,#2d0020,#1a0a14)", accent: "#f48fb1" },
+  shaman:    { bg: "linear-gradient(145deg,#0d1a00,#1a2e00,#0a1a0a)", accent: "#aed581" },
+  assassin:  { bg: "linear-gradient(145deg,#000d1a,#001428,#000a14)", accent: "#80cbc4" },
+  berserker: { bg: "linear-gradient(145deg,#1a0000,#330000,#4d0000)", accent: "#ff8a65" },
+  paladin:   { bg: "linear-gradient(145deg,#1a1400,#2e2400,#3d3200)", accent: "#fff176" },
+  druid:     { bg: "linear-gradient(145deg,#001a00,#003300,#004d00)", accent: "#a5d6a7" },
+  pirate:    { bg: "linear-gradient(145deg,#001428,#00234d,#001a3d)", accent: "#4dd0e1" },
+  ninja:     { bg: "linear-gradient(145deg,#0a000a,#1a001a,#0d000d)", accent: "#e1bee7" },
+  oracle:    { bg: "linear-gradient(145deg,#0a0a1a,#14143d,#0a0a2e)", accent: "#b0bec5" },
+  gladiator: { bg: "linear-gradient(145deg,#1a0800,#3e1500,#2d0a00)", accent: "#ffcc02" },
+};
+
+// Each world gets a unique gradient
+const WORLD_STYLE = {
+  medieval:   { bg: "linear-gradient(135deg,#1a0f00,#2e1a00,#3d2600)", emoji:"🏰", accent:"#c9a84c" },
+  ancient:    { bg: "linear-gradient(135deg,#1a1000,#3d2800,#2e1e00)", emoji:"🏛️", accent:"#ffd700" },
+  norse:      { bg: "linear-gradient(135deg,#001428,#002244,#001a33)", emoji:"⚡",  accent:"#64b5f6" },
+  eastern:    { bg: "linear-gradient(135deg,#1a0014,#33001f,#1a000f)", emoji:"⛩️", accent:"#f48fb1" },
+  fantasy:    { bg: "linear-gradient(135deg,#0d0033,#1a0066,#0d0044)", emoji:"🧙",  accent:"#ce93d8" },
+  dark:       { bg: "linear-gradient(135deg,#050505,#0f0f0f,#1a0a0a)", emoji:"🕯️", accent:"#78909c" },
+  ocean:      { bg: "linear-gradient(135deg,#001428,#002244,#003366)", emoji:"🌊",  accent:"#4dd0e1" },
+  desert:     { bg: "linear-gradient(135deg,#1a1000,#2e1e00,#3d2800)", emoji:"🌅",  accent:"#ffb74d" },
+  underworld: { bg: "linear-gradient(135deg,#0a0014,#140028,#0a001e)", emoji:"💀",  accent:"#9575cd" },
+  tribal:     { bg: "linear-gradient(135deg,#001400,#002800,#003300)", emoji:"🌿",  accent:"#81c784" },
+  random:     { bg: "linear-gradient(135deg,#1a001a,#001a1a,#1a1a00)", emoji:"🎲",  accent:"#f0c040" },
+  custom:     { bg: "linear-gradient(135deg,#1a0a00,#0a001a,#001a0a)", emoji:"✍️",  accent:"#f0c040" },
+};
+
+// ═══════════════════════════════════════════════════════════
+// API
+// ═══════════════════════════════════════════════════════════
+async function callClaude(system, messages) {
+  const res = await fetch(`${PROXY_URL}/api/story`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ model:"claude-sonnet-4-20250514", max_tokens:1200, system, messages }),
+  });
+  const data = await res.json();
+  const text = data.content?.map(b => b.text||"").join("") || "";
+  // Extract JSON robustly — find the outermost { } block
+  const cleaned = text.replace(/```json|```/g,"").trim();
+  const start = cleaned.indexOf("{");
+  const end = cleaned.lastIndexOf("}");
+  if (start === -1 || end === -1) throw new Error("No JSON found in response");
+  const jsonStr = cleaned.slice(start, end + 1);
+  try {
+    return JSON.parse(jsonStr);
+  } catch(e) {
+    // Try to salvage by replacing unescaped apostrophes inside string values
+    const fixed = jsonStr.replace(/([":,\[\{]\s*")([^"]*?)'/g, (m,p1,p2) => p1+p2+"\'");
+    return JSON.parse(fixed);
+  }
+}
+
+// Image generation removed — pending backend proxy solution
+
+// ═══════════════════════════════════════════════════════════
+// IMAGE VIA PROXY
+// ═══════════════════════════════════════════════════════════
+async function generateImage(prompt, proxyUrl, ageId) {
+  const style = (ageId==="kids"||ageId==="young") ? "kids"
+              : ageId==="teen" ? "teen" : "adult";
+  const res = await fetch(`${PROXY_URL}/api/image`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ prompt, style }),
+  });
+  const data = await res.json();
+  if (data.error) throw new Error(data.error);
+  return data.image;
+}
+
+function buildPrompt({ worldVibe, age, diff, party }) {
+  return `You are CHRONICLE — the ultimate AI Game Master. Original fantasy worlds inspired by medieval epics, ancient history, Norse sagas, samurai tales. No copyrighted IP.
+
+WORLD: ${worldVibe}
+PARTY: ${party}
+AGE: ${age.label} — ${age.note}
+DIFFICULTY: ${diff.label} — ${diff.desc}
+
+RULES:
+- Write like a master novelist. Vivid scenes — sights, sounds, smells, dread or wonder.
+- 3–5 sentences narration. Every word earns its place.
+- NPCs have distinct voices and secrets. Make them memorable.
+- Use party powers and personalities naturally in the narrative.
+- End every scene at a tense decision point.
+- Difficulty ${diff.id}: ${diff.id==="brutal"?"BAD CHOICES KILL. Real wounds, capture, death.":diff.id==="normal"?"Choices matter, mistakes cost.":"Story flows, make heroics feel earned."}
+- Age ${age.id}: ${age.id==="kids"?"Safe, magical, wonder always wins.":age.id==="young"?"Adventure, light peril, heroism shines.":age.id==="teen"?"Real stakes, no explicit content.":"Full epic scope, no limits."}
+
+Give 3 suggested actions. Each genuinely different — different approach, risk, angle. Write as what the player DOES. No labels, no icons, no prefixes.
+
+Respond ONLY in this exact JSON (no markdown, no backticks). CRITICAL: Never use apostrophes or single quotes inside JSON string values — use the word "s" instead of apostrophe-s (e.g. "the warriors sword" not "the warrior's sword"). Use double quotes only:
+{
+  "scene_title": "Four Dramatic Words",
+  "narration": "Rich 3-5 sentence narration.",
+  "atmosphere": "One burning sensory detail.",
+  "npc_name": "Name or null",
+  "npc_dialogue": "Their words or null",
+  "image_prompt": "Scene for painting, under 60 words, epic fantasy style, no names",
+  "suggested_actions": ["action one","action two","action three"],
+  "consequences_hint": "What hangs in the balance",
+  "is_ending": false
+}`;
+}
+
+// ═══════════════════════════════════════════════════════════
+// SHARED UI
+// ═══════════════════════════════════════════════════════════
+const Divider = () => (
+  <div style={{textAlign:"center",color:T.gold,fontSize:22,letterSpacing:10,margin:"12px 0",opacity:0.7}}>— ✦ —</div>
+);
+
+const SectionTitle = ({children}) => (
+  <h2 style={{
+    textAlign:"center", color:T.goldLight, fontSize:22,
+    margin:"0 0 4px", letterSpacing:4, textTransform:"uppercase",
+    fontFamily:T.font, fontWeight:900,
+  }}>{children}</h2>
+);
+
+// ═══════════════════════════════════════════════════════════
+// SETUP SCREEN
+// ═══════════════════════════════════════════════════════════
+function Setup({ onStart }) {
+  const [step, setStep] = useState(0);
+  const [world, setWorld] = useState(null);
+  const [customWorld, setCustomWorld] = useState("");
+  const [proxyUrl, setProxyUrl] = useState("");
+  const [age, setAge] = useState(null);
+  const [diff, setDiff] = useState(null);
+  const [chars, setChars] = useState([]);
+  const [customParty, setCustomParty] = useState("");
+  const [mode, setMode] = useState("preset");
+
+  const STEPS = ["World","Age & Difficulty","Party","Begin"];
+
+  const resolveVibe = () => {
+    if (world?._rand) return world.vibe;
+    if (world?.id==="custom") return customWorld;
+    return world?.vibe||"";
+  };
+
+  const toggleChar = c =>
+    setChars(p => p.find(x=>x.id===c.id) ? p.filter(x=>x.id!==c.id) : p.length<4 ? [...p,c] : p);
+
+  const partyDesc = () => {
+    const parts = [];
+    if (chars.length) parts.push(chars.map(c=>`${c.n} (${c.desc} Power: ${c.power})`).join("; "));
+    if (customParty.trim()) parts.push(customParty.trim());
+    return parts.join(". Also: ");
+  };
+
+  const ok = [
+    world && (world.id!=="custom" || customWorld.trim().length>5),
+    age && diff,
+    chars.length>0 || customParty.trim().length>10,
+    true,
+  ];
+
+  const inputStyle = {
+    width:"100%", borderRadius:12, padding:"14px 16px",
+    background:"rgba(255,150,50,0.08)", border:`2px solid ${T.border}`,
+    color:T.textMain, fontSize:18, fontFamily:T.font,
+    outline:"none", boxSizing:"border-box",
+  };
+
+  return (
+    <div style={{
+      minHeight:"100vh", background:T.bgPage, fontFamily:T.font,
+      color:T.textMain, display:"flex", flexDirection:"column",
+      alignItems:"center", padding:"36px 20px 80px",
+    }}>
+
+      {/* Hero Banner */}
+      <div style={{
+        width:"100%", maxWidth:700, marginBottom:28, borderRadius:20, overflow:"hidden",
+        position:"relative", boxShadow:"0 8px 48px rgba(0,0,0,0.7)",
+        aspectRatio:"21/9", minHeight:160,
+        background:"linear-gradient(135deg, #6a0000 0%, #3a0000 50%, #1e0303 100%)",
+      }}>
+
+        <div style={{
+          position:"absolute", inset:0,
+          background:"linear-gradient(to top, rgba(20,0,0,0.95) 0%, rgba(60,0,0,0.4) 50%, rgba(0,0,0,0.1) 100%)",
+          display:"flex", flexDirection:"column", justifyContent:"flex-end",
+          alignItems:"center", padding:"28px 20px 24px",
+        }}>
+          <div style={{fontSize:56, marginBottom:4, filter:`drop-shadow(0 0 20px rgba(240,192,64,0.8))`}}>⚔️</div>
+          <h1 style={{
+            fontSize:64, fontWeight:900, margin:0, letterSpacing:10,
+            background:`linear-gradient(180deg, ${T.goldLight} 0%, ${T.gold} 55%, #a06800 100%)`,
+            WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent",
+            textTransform:"uppercase", fontFamily:T.font,
+            filter:"drop-shadow(0 2px 12px rgba(0,0,0,0.9))",
+          }}>Chronicle</h1>
+          <div style={{color:T.goldDim, fontSize:15, letterSpacing:7, textTransform:"uppercase", marginTop:6}}>
+            The AI Game Master
+          </div>
+        </div>
+      </div>
+
+      {/* Step bar */}
+      <div style={{display:"flex", gap:6, marginBottom:32}}>
+        {STEPS.map((s,i) => (
+          <div key={i} onClick={()=>i<step&&setStep(i)} style={{
+            padding:"6px 16px", borderRadius:24, fontSize:14,
+            cursor:i<step?"pointer":"default",
+            background:i===step?T.gold:i<step?"rgba(240,192,64,0.2)":"rgba(255,255,255,0.05)",
+            color:i===step?"#1a0000":i<step?T.gold:"#6a4a20",
+            fontWeight:i===step?"bold":"normal",
+            border:`1.5px solid ${i<=step?T.gold:"transparent"}`,
+            transition:"all 0.25s", letterSpacing:1, textTransform:"uppercase",
+          }}>{s}</div>
+        ))}
+      </div>
+
+      <div style={{width:"100%", maxWidth:600}}>
+
+        {/* ── STEP 0: WORLD ── */}
+        {step===0 && <>
+          <SectionTitle>Choose Your World</SectionTitle>
+          <Divider/>
+          <div style={{display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:12, marginTop:16}}>
+            {WORLDS.map(w => {
+              const sel = world?.id===w.id || (world?._rand && w.id==="random");
+              return (
+                <div key={w.id} onClick={()=>{
+                  if (w.id==="random") {
+                    const opts = WORLDS.filter(x=>x.id!=="random"&&x.id!=="custom");
+                    setWorld({...opts[Math.floor(Math.random()*opts.length)], _rand:true});
+                  } else setWorld(w);
+                }} style={{
+                  cursor:"pointer", borderRadius:16, overflow:"hidden",
+                  border:`2px solid ${sel ? (WORLD_STYLE[w.id]?.accent||T.gold) : T.borderDim}`,
+                  transform:sel?"scale(1.06)":"scale(1)", transition:"all 0.2s",
+                  background: WORLD_STYLE[w.id]?.bg || T.bgCard,
+                  boxShadow: sel ? `0 0 20px ${WORLD_STYLE[w.id]?.accent||T.gold}55` : "none",
+                  padding:"18px 12px 14px", textAlign:"center",
+                }}>
+                  <div style={{
+                    fontSize:42, marginBottom:10,
+                    filter: sel ? `drop-shadow(0 0 12px ${WORLD_STYLE[w.id]?.accent||T.gold})` : "none",
+                    transition:"filter 0.2s",
+                  }}>{w.emoji}</div>
+                  <div style={{
+                    color: sel ? (WORLD_STYLE[w.id]?.accent||T.goldLight) : "#fff",
+                    fontWeight:"bold", fontSize:15, lineHeight:1.3,
+                    fontFamily:T.font,
+                  }}>{w.name}</div>
+                  <div style={{color:"rgba(255,220,150,0.6)", fontSize:12, marginTop:5, lineHeight:1.4}}>{w.desc}</div>
+                  {sel && <div style={{
+                    marginTop:10, padding:"3px 10px", borderRadius:20, display:"inline-block",
+                    background:`${WORLD_STYLE[w.id]?.accent||T.gold}33`,
+                    border:`1px solid ${WORLD_STYLE[w.id]?.accent||T.gold}`,
+                    color:WORLD_STYLE[w.id]?.accent||T.gold, fontSize:11, letterSpacing:1,
+                  }}>✦ SELECTED</div>}
+                </div>
+              );
+            })}
+          </div>
+          {world?.id==="custom" && (
+            <textarea value={customWorld} onChange={e=>setCustomWorld(e.target.value)}
+              placeholder="e.g. A crumbling Roman empire where the old gods have returned and magic corrupts all who wield it..."
+              style={{...inputStyle, minHeight:100, marginTop:16, resize:"vertical", lineHeight:1.7}}/>
+          )}
+          {world && !world._rand && world.id!=="custom" && world.id!=="random" && (
+            <div style={{marginTop:14, padding:"12px 16px", borderRadius:12,
+              background:"rgba(240,192,64,0.08)", border:`1px solid ${T.borderDim}`,
+              fontSize:15, color:T.textMuted, fontStyle:"italic"}}>
+              ✦ {world.vibe}
+            </div>
+          )}
+          {world?._rand && (
+            <div style={{marginTop:14, padding:"12px 16px", borderRadius:12,
+              background:"rgba(240,192,64,0.1)", border:`1px solid ${T.gold}`,
+              fontSize:16, color:T.gold, fontStyle:"italic"}}>
+              🎲 "{world.vibe}"
+            </div>
+          )}
+        </>}
+
+        {/* ── STEP 1: AGE + DIFFICULTY ── */}
+        {step===1 && <>
+          <SectionTitle>Age Group</SectionTitle>
+          <Divider/>
+          <div style={{display:"grid", gridTemplateColumns:"repeat(2,1fr)", gap:12, marginTop:14}}>
+            {AGE_GROUPS.map(a => (
+              <div key={a.id} onClick={()=>setAge(a)} style={{
+                cursor:"pointer", borderRadius:16, padding:"18px 16px",
+                background:age?.id===a.id?T.bgSelected:T.bgCard,
+                border:`2px solid ${age?.id===a.id?T.gold:T.borderDim}`,
+                transition:"all 0.2s",
+              }}>
+                <div style={{fontWeight:"bold", color:T.textMain, fontSize:20}}>{a.label}</div>
+                <div style={{color:T.textMuted, fontSize:15, marginTop:5}}>{a.desc}</div>
+              </div>
+            ))}
+          </div>
+
+          <SectionTitle style={{marginTop:32}}>
+            <div style={{marginTop:32}}><SectionTitle>Difficulty</SectionTitle></div>
+          </SectionTitle>
+          <Divider/>
+          <div style={{display:"flex", flexDirection:"column", gap:12, marginTop:14}}>
+            {DIFFICULTIES.map(d => (
+              <div key={d.id} onClick={()=>setDiff(d)} style={{
+                cursor:"pointer", borderRadius:16, padding:"18px 20px",
+                background:diff?.id===d.id?T.bgSelected:T.bgCard,
+                border:`2px solid ${diff?.id===d.id?T.gold:T.borderDim}`,
+                display:"flex", alignItems:"center", gap:16, transition:"all 0.2s",
+              }}>
+                <div style={{fontSize:28}}>{d.label.split(" ")[0]}</div>
+                <div>
+                  <div style={{color:T.textMain, fontWeight:"bold", fontSize:19}}>{d.label.split(" ").slice(1).join(" ")}</div>
+                  <div style={{color:T.textMuted, fontSize:15, marginTop:3}}>{d.desc}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </>}
+
+        {/* ── STEP 2: PARTY ── */}
+        {step===2 && <>
+          <SectionTitle>Assemble Your Party</SectionTitle>
+          <Divider/>
+          <div style={{display:"flex", gap:8, marginBottom:16, marginTop:14}}>
+            {[["preset","🗡️ Pick Heroes"],["custom","✍️ Write My Own"],["both","🎲 Both"]].map(([id,lbl])=>(
+              <button key={id} onClick={()=>setMode(id)} style={{
+                flex:1, padding:"10px 4px", borderRadius:12, cursor:"pointer",
+                background:mode===id?T.gold:T.bgCard,
+                border:`1.5px solid ${mode===id?T.gold:T.borderDim}`,
+                color:mode===id?"#1a0000":T.textSub,
+                fontFamily:T.font, fontSize:16, fontWeight:mode===id?"bold":"normal",
+              }}>{lbl}</button>
+            ))}
+          </div>
+
+          {(mode==="preset"||mode==="both") && <>
+            <div style={{color:T.textMuted, fontSize:15, marginBottom:12, textAlign:"center"}}>
+              Select up to 4 heroes ({chars.length}/4 chosen)
+            </div>
+            <div style={{display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:8}}>
+              {CHARS.map(c => {
+                const sel = !!chars.find(x=>x.id===c.id);
+                return (
+                  <div key={c.id} onClick={()=>toggleChar(c)} style={{
+                    cursor:"pointer", borderRadius:14, overflow:"hidden",
+                    border:`2px solid ${sel?(CHAR_STYLE[c.id]?.accent||T.gold):T.borderDim}`,
+                    transform:sel?"scale(1.06)":"scale(1)", transition:"all 0.18s",
+                    background: CHAR_STYLE[c.id]?.bg || T.bgCard,
+                    boxShadow: sel ? `0 0 18px ${CHAR_STYLE[c.id]?.accent||T.gold}55` : "none",
+                    padding:"14px 8px 10px", textAlign:"center",
+                    position:"relative",
+                  }}>
+                    <div style={{
+                      fontSize:42, marginBottom:8, lineHeight:1,
+                      filter: sel ? `drop-shadow(0 0 10px ${CHAR_STYLE[c.id]?.accent||T.gold})` : "drop-shadow(0 2px 4px rgba(0,0,0,0.8))",
+                      transition:"filter 0.2s",
+                    }}>{c.e}</div>
+                    <div style={{
+                      color: sel ? (CHAR_STYLE[c.id]?.accent||T.goldLight) : "#fff",
+                      fontSize:13, fontWeight:"bold", lineHeight:1.3,
+                      fontFamily:T.font, textShadow:"0 1px 4px rgba(0,0,0,0.9)",
+                    }}>{c.n}</div>
+                    {sel && <div style={{
+                      position:"absolute", top:6, right:6,
+                      background:CHAR_STYLE[c.id]?.accent||T.gold,
+                      borderRadius:"50%", width:22, height:22,
+                      display:"flex", alignItems:"center", justifyContent:"center",
+                      fontSize:13, color:"#000", fontWeight:"bold",
+                    }}>✓</div>}
+                  </div>
+                );
+              })}
+            </div>
+            {chars.length>0 && (
+              <div style={{marginTop:16, padding:"14px 16px", borderRadius:14,
+                background:"rgba(240,192,64,0.07)", border:`1px solid ${T.borderDim}`}}>
+                {chars.map(c=>(
+                  <div key={c.id} style={{display:"flex", gap:12, marginBottom:12, alignItems:"flex-start"}}>
+                    <div style={{
+                      width:64, height:64, borderRadius:10, flexShrink:0,
+                      background: CHAR_STYLE[c.id]?.bg || T.bgCard,
+                      border:`2px solid ${CHAR_STYLE[c.id]?.accent||T.gold}`,
+                      display:"flex", alignItems:"center", justifyContent:"center",
+                      fontSize:32,
+                    }}>{c.e}</div>
+                    <div>
+                      <div style={{color:T.goldLight, fontSize:17, fontWeight:"bold"}}>{c.n}</div>
+                      <div style={{color:T.textMuted, fontSize:14, lineHeight:1.5}}>{c.desc}</div>
+                      <div style={{color:T.gold, fontSize:14, marginTop:3}}>✦ {c.power}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </>}
+
+          {(mode==="custom"||mode==="both") && (
+            <div style={{marginTop:mode==="both"?20:0}}>
+              {mode==="both" && <div style={{color:T.gold, fontSize:16, marginBottom:8}}>✦ Add custom characters:</div>}
+              <textarea value={customParty} onChange={e=>setCustomParty(e.target.value)}
+                placeholder={"Describe your characters...\n\ne.g. Varro — a scarred Roman centurion who deserted after witnessing a massacre. Carries his dead general's sword.\n\nKira — an elven archer who speaks only in riddles and claims she already knows how this ends."}
+                style={{...inputStyle, minHeight:160, resize:"vertical", lineHeight:1.7}}/>
+            </div>
+          )}
+        </>}
+
+        {/* ── STEP 3: SUMMARY ── */}
+        {step===3 && <>
+          <SectionTitle>Your Chronicle</SectionTitle>
+          <Divider/>
+          <div style={{marginTop:8, padding:"24px 24px", borderRadius:18,
+            background:"rgba(240,192,64,0.07)", border:`1px solid ${T.border}`}}>
+            <div style={{color:T.gold, fontSize:13, letterSpacing:3, textTransform:"uppercase", marginBottom:16}}>✦ Adventure Summary ✦</div>
+            {[
+              ["🌍 World",      world?._rand ? `${world.name} — "${world.vibe}"` : world?.name],
+              ["👥 Age",        age?.label],
+              ["⚔️ Difficulty", diff?.label],
+              ["🗡️ Party",     chars.map(c=>c.n).join(", ")||(customParty?"Custom party":"—")],
+            ].map(([k,v])=>(
+              <div key={k} style={{display:"flex", gap:12, fontSize:17, marginBottom:10, alignItems:"flex-start"}}>
+                <span style={{color:T.textMuted, minWidth:110, flexShrink:0}}>{k}:</span>
+                <span style={{color:T.textMain, lineHeight:1.5}}>{v}</span>
+              </div>
+            ))}
+          </div>
+          {chars.length>0 && (
+            <div style={{display:"flex", gap:10, flexWrap:"wrap", marginTop:20, justifyContent:"center"}}>
+              {chars.map(c=>(
+                <div key={c.id} style={{
+                  borderRadius:12, padding:"10px 14px", textAlign:"center",
+                  background: CHAR_STYLE[c.id]?.bg || T.bgCard,
+                  border:`1.5px solid ${CHAR_STYLE[c.id]?.accent||T.gold}`,
+                  minWidth:80,
+                }}>
+                  <div style={{fontSize:30, marginBottom:4}}>{c.e}</div>
+                  <div style={{color:CHAR_STYLE[c.id]?.accent||T.goldLight, fontSize:13, fontWeight:"bold"}}>{c.n}</div>
+                </div>
+              ))}
+            </div>
+          )}
+          {/* Proxy URL input */}
+          <div style={{marginTop:24, padding:"18px 20px", borderRadius:16,
+            background:"rgba(240,192,64,0.05)", border:`1px solid ${T.borderDim}`}}>
+            <div style={{color:T.gold, fontSize:13, letterSpacing:2, textTransform:"uppercase", marginBottom:10}}>
+              🖼️ Scene Images (optional)
+            </div>
+            <div style={{color:T.textMuted, fontSize:14, lineHeight:1.7, marginBottom:12}}>
+              Paste your Chronicle Proxy URL to enable AI-generated scene illustrations.
+              Leave blank to play without images.
+            </div>
+            <input
+              type="text"
+              value={proxyUrl}
+              onChange={e=>setProxyUrl(e.target.value.trim())}
+              placeholder="https://your-chronicle-proxy.onrender.com"
+              style={{
+                width:"100%", borderRadius:10, padding:"11px 14px",
+                background:"rgba(255,150,50,0.08)", border:`1.5px solid ${proxyUrl?T.gold:T.borderDim}`,
+                color:T.textMain, fontSize:15, fontFamily:T.font,
+                outline:"none", boxSizing:"border-box",
+              }}
+            />
+            {proxyUrl && (
+              <div style={{color:T.gold, fontSize:13, marginTop:8}}>
+                ✦ Images will generate in the background as you play
+              </div>
+            )}
+          </div>
+        </>}
+
+        {/* NAV */}
+        <div style={{display:"flex", gap:12, marginTop:32, justifyContent:"center"}}>
+          {step>0 && (
+            <button onClick={()=>setStep(s=>s-1)} style={{
+              background:"rgba(255,150,50,0.08)", color:T.textMuted,
+              border:`1.5px solid ${T.borderDim}`, borderRadius:20,
+              padding:"13px 28px", fontSize:17, fontFamily:T.font, cursor:"pointer",
+            }}>← Back</button>
+          )}
+          {step<3 ? (
+            <button onClick={()=>ok[step]&&setStep(s=>s+1)} style={{
+              background:ok[step]?`linear-gradient(135deg,${T.gold},${T.goldLight})`:"rgba(255,255,255,0.05)",
+              color:ok[step]?"#1a0000":"#4a3010",
+              border:"none", borderRadius:20, padding:"13px 40px",
+              fontSize:17, fontFamily:T.font,
+              cursor:ok[step]?"pointer":"not-allowed",
+              fontWeight:"bold", letterSpacing:1,
+            }}>Continue →</button>
+          ) : (
+            <button onClick={()=>onStart({world, vibe:resolveVibe(), age, diff, party:partyDesc(), chars, proxyUrl})} style={{
+              background:`linear-gradient(135deg,${T.gold},${T.goldLight})`,
+              color:"#1a0000", border:"none", borderRadius:20,
+              padding:"15px 48px", fontSize:20, fontFamily:T.font,
+              cursor:"pointer", fontWeight:900, letterSpacing:2,
+              boxShadow:`0 6px 32px rgba(240,192,64,0.4)`,
+              textTransform:"uppercase",
+            }}>⚔️ Begin Chronicle</button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
+// SCENE PANEL
+// ═══════════════════════════════════════════════════════════
+function Scene({ scene, isLatest, onAction, loading }) {
+  const [custom, setCustom] = useState("");
+  const [showCustom, setShowCustom] = useState(false);
+
+  const submit = () => {
+    if (custom.trim()) { onAction(custom.trim()); setCustom(""); setShowCustom(false); }
+  };
+
+  return (
+    <div style={{
+      background:isLatest?T.bgCard:"rgba(255,150,50,0.03)",
+      border:`1.5px solid ${isLatest?T.border:T.borderDim}`,
+      borderRadius:20, overflow:"hidden",
+      opacity:isLatest?1:0.4, marginBottom:20,
+      animation:isLatest?"fadeUp 0.5s ease":"none",
+      boxShadow:isLatest?`0 6px 48px rgba(0,0,0,0.6)`:"none",
+    }}>
+
+      {/* Image fades in — never blocks */}
+
+
+      {/* Scene image - loads via proxy in background */}
+      {scene.imageLoading && !scene.imageUrl && (
+        <div style={{
+          padding:"10px 18px", background:"rgba(240,192,64,0.04)",
+          borderBottom:`1px solid rgba(240,192,64,0.08)`,
+          display:"flex", alignItems:"center", gap:8,
+        }}>
+          <span style={{animation:"flicker 1.5s ease-in-out infinite", fontSize:15}}>🎨</span>
+          <span style={{color:T.textDark, fontSize:13, letterSpacing:1}}>Painting the scene...</span>
+        </div>
+      )}
+      {scene.imageError && (
+        <div style={{
+          padding:"10px 18px", background:"rgba(180,40,40,0.15)",
+          borderBottom:`1px solid rgba(200,60,60,0.3)`,
+          fontSize:13, color:"#ff9090",
+        }}>
+          🖼️ Image error: {scene.imageError}
+        </div>
+      )}
+      {scene.imageUrl && (
+        <div style={{position:"relative"}}>
+          <img src={scene.imageUrl} alt="" style={{
+            width:"100%", display:"block", aspectRatio:"16/9", objectFit:"cover",
+            animation:"fadeIn 1s ease",
+          }}/>
+          <div style={{
+            position:"absolute", bottom:0, left:0, right:0, height:80,
+            background:"linear-gradient(transparent, rgba(20,0,0,0.98))",
+          }}/>
+        </div>
+      )}
+
+      <div style={{padding:"24px 26px"}}>
+
+        {/* Past choice */}
+        {scene.chosenAction && (
+          <div style={{
+            fontSize:15, color:T.textDark, marginBottom:14, fontStyle:"italic",
+            paddingBottom:12, borderBottom:`1px solid rgba(240,192,64,0.1)`,
+          }}>
+            ✦ You chose: "{scene.chosenAction}"
+          </div>
+        )}
+
+        {/* Title */}
+        <h3 style={{
+          color:T.goldLight, fontSize:24, margin:"0 0 6px",
+          fontWeight:900, letterSpacing:3, textTransform:"uppercase", fontFamily:T.font,
+        }}>{scene.scene_title}</h3>
+
+        {/* Atmosphere */}
+        {scene.atmosphere && (
+          <div style={{color:T.textDark, fontSize:16, fontStyle:"italic", marginBottom:14, lineHeight:1.6}}>
+            {scene.atmosphere}
+          </div>
+        )}
+
+        {/* Narration */}
+        <p style={{
+          color:T.textMain, fontSize:19, lineHeight:2.0, margin:"0 0 18px", fontFamily:T.font,
+        }}>{scene.narration}</p>
+
+        {/* NPC */}
+        {scene.npc_dialogue && (
+          <div style={{
+            borderLeft:`4px solid ${T.gold}`, marginBottom:18,
+            background:"rgba(240,192,64,0.06)", borderRadius:"0 12px 12px 0",
+            padding:"14px 18px",
+          }}>
+            {scene.npc_name && (
+              <div style={{color:T.gold, fontSize:14, fontWeight:"bold", letterSpacing:3, textTransform:"uppercase", marginBottom:6}}>
+                {scene.npc_name}
+              </div>
+            )}
+            <div style={{color:T.textSub, fontStyle:"italic", fontSize:18, lineHeight:1.7}}>
+              "{scene.npc_dialogue}"
+            </div>
+          </div>
+        )}
+
+        {/* Consequences */}
+        {scene.consequences_hint && isLatest && (
+          <div style={{color:T.textDark, fontSize:15, fontStyle:"italic", marginBottom:18, textAlign:"center"}}>
+            ⚠ {scene.consequences_hint}
+          </div>
+        )}
+
+        {/* Actions */}
+        {isLatest && !loading && (
+          <div>
+            <div style={{color:T.textDark, fontSize:13, letterSpacing:4, textTransform:"uppercase", marginBottom:12, textAlign:"center"}}>
+              ✦ What do you do? ✦
+            </div>
+            <div style={{display:"flex", flexDirection:"column", gap:8}}>
+              {scene.suggested_actions?.map((act,i) => (
+                <button key={i} onClick={()=>onAction(act)} style={{
+                  background:"rgba(240,192,64,0.06)",
+                  border:`1.5px solid rgba(240,192,64,0.25)`,
+                  borderRadius:14, padding:"15px 20px",
+                  color:T.textMain, fontFamily:T.font, fontSize:17,
+                  cursor:"pointer", textAlign:"left",
+                  transition:"all 0.15s", lineHeight:1.5,
+                }}
+                  onMouseEnter={e=>{e.currentTarget.style.background=T.bgCardHover;e.currentTarget.style.borderColor=T.gold;e.currentTarget.style.color=T.goldLight;e.currentTarget.style.transform="translateX(6px)";}}
+                  onMouseLeave={e=>{e.currentTarget.style.background="rgba(240,192,64,0.06)";e.currentTarget.style.borderColor="rgba(240,192,64,0.25)";e.currentTarget.style.color=T.textMain;e.currentTarget.style.transform="translateX(0)";}}
+                >{act}</button>
+              ))}
+
+              {/* Free text */}
+              {!showCustom ? (
+                <button onClick={()=>setShowCustom(true)} style={{
+                  background:"transparent",
+                  border:`1.5px dashed rgba(240,192,64,0.2)`,
+                  borderRadius:14, padding:"13px 20px",
+                  color:T.textDark, fontFamily:T.font, fontSize:16,
+                  cursor:"pointer", textAlign:"left", transition:"all 0.15s",
+                }}
+                  onMouseEnter={e=>{e.currentTarget.style.borderColor=T.gold;e.currentTarget.style.color=T.gold;}}
+                  onMouseLeave={e=>{e.currentTarget.style.borderColor="rgba(240,192,64,0.2)";e.currentTarget.style.color=T.textDark;}}
+                >✍️ Write your own action...</button>
+              ) : (
+                <div style={{border:`2px solid ${T.gold}`, borderRadius:14, overflow:"hidden"}}>
+                  <textarea autoFocus value={custom}
+                    onChange={e=>setCustom(e.target.value)}
+                    onKeyDown={e=>e.key==="Enter"&&!e.shiftKey&&(e.preventDefault(),submit())}
+                    placeholder="Describe exactly what you do..."
+                    style={{
+                      width:"100%", padding:"14px 16px",
+                      background:"rgba(240,192,64,0.05)", border:"none",
+                      color:T.textMain, fontSize:17, fontFamily:T.font,
+                      resize:"none", outline:"none", minHeight:70,
+                      boxSizing:"border-box", lineHeight:1.6,
+                    }}/>
+                  <div style={{display:"flex", gap:8, padding:"10px 14px",
+                    background:"rgba(0,0,0,0.4)", borderTop:`1px solid rgba(240,192,64,0.15)`}}>
+                    <button onClick={submit} style={{
+                      background:T.gold, color:"#1a0000", border:"none",
+                      borderRadius:8, padding:"7px 20px", fontSize:15,
+                      fontFamily:T.font, cursor:"pointer", fontWeight:"bold",
+                    }}>Do it →</button>
+                    <button onClick={()=>{setShowCustom(false);setCustom("");}} style={{
+                      background:"transparent", color:T.textDark, border:"none",
+                      fontSize:15, cursor:"pointer", fontFamily:T.font,
+                    }}>Cancel</button>
+                    <span style={{color:"#4a2010", fontSize:13, alignSelf:"center", marginLeft:"auto"}}>Enter to submit</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
+// ADVENTURE SCREEN
+// ═══════════════════════════════════════════════════════════
+
+// Auto-summarise when history gets long (every 10 scenes)
+const SUMMARISE_EVERY = 10;
+
+async function summariseHistory(history, systemPrompt) {
+  const summariseMsg = `Summarise everything that has happened in the adventure so far in 150 words maximum. Include: key events, important NPCs met, decisions made, current situation. Write it as a compact story recap that preserves all narrative context. Start with "STORY SO FAR:"`;
+  const res = await fetch(`${PROXY_URL}/api/story`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: "claude-sonnet-4-20250514",
+      max_tokens: 300,
+      system: systemPrompt,
+      messages: [...history, {role:"user", content:summariseMsg}],
+    }),
+  });
+  const data = await res.json();
+  return data.content?.map(b=>b.text||"").join("") || "";
+}
+
+function Adventure({ cfg, onRestart }) {
+  const [scenes, setScenes] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [summarising, setSummarising] = useState(false);
+  const [summary, setSummary] = useState(null); // current compressed summary
+  const history = useRef([]);
+  const sceneCount = useRef(0);
+  const bottomRef = useRef(null);
+  const sys = buildPrompt({ worldVibe:cfg.vibe, age:cfg.age, diff:cfg.diff, party:cfg.party });
+
+  const compressHistory = async () => {
+    if (history.current.length < 6) return; // nothing to compress yet
+    setSummarising(true);
+    try {
+      const newSummary = await summariseHistory(history.current, sys);
+      // Replace full history with a single summary message
+      history.current = [{
+        role: "user",
+        content: `${newSummary}
+
+Continue the adventure from this point.`
+      }, {
+        role: "assistant",
+        content: JSON.stringify({scene_title:"Story Continues", narration:"The chronicle continues...", suggested_actions:[]})
+      }];
+      setSummary(newSummary);
+    } catch(e) {
+      console.warn("Summarisation failed:", e.message);
+    }
+    setSummarising(false);
+  };
+
+  const next = async (choice=null) => {
+    setLoading(true); setError(null);
+    try {
+      // Auto-compress every N scenes
+      sceneCount.current += 1;
+      if (sceneCount.current > 1 && sceneCount.current % SUMMARISE_EVERY === 0) {
+        await compressHistory();
+      }
+
+      const msg = choice
+        ? `The party acted: "${choice}". Continue the story.`
+        : `Open the adventure. Immediately draw the party into something urgent. Establish the world through action, not exposition.`;
+      history.current = [...history.current, {role:"user", content:msg}];
+      const scene = await callClaude(sys, history.current);
+      history.current = [...history.current, {role:"assistant", content:JSON.stringify(scene)}];
+      const s = {...scene, chosenAction:choice, id:Date.now(), imageUrl:null, imageLoading:!!cfg.proxyUrl};
+      setScenes(p=>[...p,s]);
+      setLoading(false);
+
+      // Generate scene image via proxy if configured
+      if (cfg.proxyUrl && scene.image_prompt) {
+        generateImage(scene.image_prompt, cfg.proxyUrl, cfg.age?.id)
+          .then(url => setScenes(p=>p.map(x=>x.id===s.id?{...x,imageUrl:url,imageLoading:false}:x)))
+          .catch(err => setScenes(p=>p.map(x=>x.id===s.id?{...x,imageLoading:false,imageError:err.message}:x)));
+      }
+    } catch(e) {
+      setError("The chronicle was disrupted: "+e.message);
+      setLoading(false);
+    }
+  };
+
+  useEffect(()=>{next();},[]);
+  useEffect(()=>{setTimeout(()=>bottomRef.current?.scrollIntoView({behavior:"smooth"}),200);},[scenes,loading]);
+
+  return (
+    <div style={{minHeight:"100vh", background:T.bgPage, fontFamily:T.font, color:T.textMain}}>
+
+      {/* Top bar */}
+      <div style={{
+        position:"sticky", top:0, zIndex:10,
+        background:"rgba(60,0,0,0.97)", backdropFilter:"blur(14px)",
+        borderBottom:`1.5px solid ${T.border}`,
+        padding:"12px 20px", display:"flex", alignItems:"center", justifyContent:"space-between",
+      }}>
+        <div style={{display:"flex", alignItems:"center", gap:12}}>
+          <span style={{fontSize:22}}>⚔️</span>
+          <div>
+            <div style={{color:T.goldLight, fontSize:17, fontWeight:"bold", letterSpacing:1}}>
+              {cfg.world?.emoji} {cfg.world?.name}
+            </div>
+            <div style={{color:T.textDark, fontSize:13, letterSpacing:1}}>
+              {cfg.age?.label} · {cfg.diff?.label} · Scene {scenes.length}
+              {scenes.length >= 5 && !summary && (
+                <span style={{color:"#7a4020", marginLeft:8, fontSize:11}}>
+                  ~{Math.round(scenes.length * 1000).toLocaleString()} tokens
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+        <div style={{display:"flex", gap:8, alignItems:"center"}}>
+          {cfg.chars?.map(c=>(
+            <span key={c.id} title={c.n} style={{fontSize:20}}>{c.e}</span>
+          ))}
+          {scenes.length >= 6 && !summarising && !loading && (
+            <button onClick={compressHistory} title="Compress story history to save tokens" style={{
+              background:"rgba(240,192,64,0.08)", color:T.textDark,
+              border:`1px solid ${T.borderDim}`, borderRadius:8,
+              padding:"4px 10px", fontSize:12, fontFamily:T.font, cursor:"pointer",
+            }}>📜 Compress</button>
+          )}
+          {summarising && (
+            <div style={{fontSize:13, color:T.gold, animation:"flicker 1.5s infinite", marginRight:4}}>
+              📜 Compressing...
+            </div>
+          )}
+          {summary && !summarising && (
+            <div title={summary} style={{
+              fontSize:12, color:T.textDark, cursor:"help",
+              border:`1px solid ${T.borderDim}`, borderRadius:8,
+              padding:"3px 9px", marginRight:4,
+            }}>📜 History compressed</div>
+          )}
+          <button onClick={onRestart} style={{
+            background:"rgba(255,100,50,0.08)", color:T.textMuted,
+            border:`1px solid ${T.borderDim}`, borderRadius:10,
+            padding:"6px 14px", fontSize:14, fontFamily:T.font, cursor:"pointer", marginLeft:4,
+          }}>New Game</button>
+        </div>
+      </div>
+
+      {/* Party strip */}
+      {cfg.chars?.length>0 && (
+        <div style={{maxWidth:660, margin:"16px auto 0", padding:"0 16px"}}>
+          <div style={{
+            background:"rgba(240,192,64,0.06)", border:`1px solid ${T.borderDim}`,
+            borderRadius:14, padding:"12px 16px", display:"flex", gap:14, flexWrap:"wrap",
+          }}>
+            {cfg.chars.map(c=>(
+              <div key={c.id} style={{display:"flex", alignItems:"center", gap:8}}>
+                <div style={{
+                  width:44, height:44, borderRadius:8, flexShrink:0,
+                  background: CHAR_STYLE[c.id]?.bg || T.bgCard,
+                  border:`1.5px solid ${CHAR_STYLE[c.id]?.accent||T.gold}`,
+                  display:"flex", alignItems:"center", justifyContent:"center",
+                  fontSize:22,
+                }}>{c.e}</div>
+                <div>
+                  <div style={{color:T.gold, fontSize:14, fontWeight:"bold"}}>{c.n}</div>
+                  <div style={{color:T.textDark, fontSize:12}}>✦ {c.power}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Scenes */}
+      <div style={{maxWidth:660, margin:"18px auto 0", padding:"0 16px 64px"}}>
+        {scenes.map((s,i)=>(
+          <Scene key={s.id} scene={s} isLatest={i===scenes.length-1} onAction={next} loading={loading}/>
+        ))}
+
+        {loading && (
+          <div style={{
+            background:T.bgCard, borderRadius:20, padding:"52px 24px",
+            textAlign:"center", border:`1.5px solid ${T.borderDim}`,
+          }}>
+            <div style={{fontSize:40, marginBottom:12, animation:"flicker 2s ease-in-out infinite"}}>🔮</div>
+            <div style={{color:T.gold, fontSize:17, letterSpacing:4, textTransform:"uppercase"}}>
+              The Chronicle Unfolds...
+            </div>
+          </div>
+        )}
+
+        {error && (
+          <div style={{
+            background:"rgba(180,40,40,0.12)", borderRadius:16, padding:"20px",
+            textAlign:"center", border:"1.5px solid rgba(200,60,60,0.4)",
+          }}>
+            <div style={{color:"#ff9090", marginBottom:12, fontSize:16}}>{error}</div>
+            <button onClick={()=>next(scenes.at(-1)?.chosenAction)} style={{
+              background:T.gold, color:"#1a0000", border:"none", borderRadius:10,
+              padding:"9px 24px", cursor:"pointer", fontFamily:T.font, fontWeight:"bold", fontSize:16,
+            }}>Try Again</button>
+          </div>
+        )}
+        <div ref={bottomRef}/>
+      </div>
+
+      <style>{`
+        @keyframes fadeUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+        @keyframes fadeIn{from{opacity:0}to{opacity:1}}
+        @keyframes flicker{0%,100%{opacity:1}50%{opacity:0.25}}
+      `}</style>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
+// APP ROOT
+// ═══════════════════════════════════════════════════════════
+function Chronicle() {
+  const [cfg, setCfg] = useState(null);
+  if (!cfg) return <Setup onStart={setCfg}/>;
+  return <Adventure cfg={cfg} onRestart={()=>setCfg(null)}/>;
+}
+
+
+ReactDOM.createRoot(document.getElementById("root")).render(<Chronicle/>);
+
+  </script>
+</body>
+</html>
